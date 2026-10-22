@@ -16,7 +16,7 @@ import json
 import time
 import re
 from datetime import datetime, timezone
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 # In-memory time-series storage (measurement -> list of points)
@@ -77,6 +77,7 @@ def parse_line_protocol(body_str):
 
 
 class InfluxHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, format, *args):
         # Concise logging
@@ -107,6 +108,8 @@ class InfluxHandler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Connection", "close")
             self.send_header("X-Influxdb-Version", "v2.7.11")
             self.send_cors_headers()
             self.end_headers()
@@ -125,6 +128,8 @@ class InfluxHandler(BaseHTTPRequestHandler):
             }).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Connection", "close")
             self.send_cors_headers()
             self.end_headers()
             self.wfile.write(payload)
@@ -146,6 +151,7 @@ class InfluxHandler(BaseHTTPRequestHandler):
 
             self.send_response(204)
             self.send_cors_headers()
+            self.send_header("Connection", "close")
             self.send_header("X-Influxdb-Version", "v2.7.11")
             self.end_headers()
 
@@ -156,6 +162,8 @@ class InfluxHandler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Connection", "close")
             self.send_header("X-Influxdb-Version", "v2.7.11")
             self.send_cors_headers()
             self.end_headers()
@@ -278,7 +286,7 @@ class InfluxHandler(BaseHTTPRequestHandler):
 def main():
     port = 8086
     server_address = ("0.0.0.0", port)
-    httpd = HTTPServer(server_address, InfluxHandler)
+    httpd = ThreadingHTTPServer(server_address, InfluxHandler)
     print(f"[InfluxDB-2.7.11] Local Time-Series Server listening on http://localhost:{port}")
     try:
         httpd.serve_forever()

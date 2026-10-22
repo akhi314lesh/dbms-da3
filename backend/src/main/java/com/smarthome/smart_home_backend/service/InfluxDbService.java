@@ -265,23 +265,26 @@ public class InfluxDbService {
         long targetDevId = (deviceId != null) ? deviceId : 4L;
         Map<String, Object> benchmark = new LinkedHashMap<>();
 
-        // 1. Oracle SQL Execution
-        long oracleStart = System.nanoTime();
-        List<Map<String, Object>> oracleRows = Collections.emptyList();
-        String oracleSql = "SELECT TRUNC(reading_time, 'HH') AS time_bucket, " +
+        // 1. Oracle SQL Execution on real high-frequency telemetry dataset (20,000+ points)
+        String oracleSql = "SELECT TRUNC(reading_time, 'MI') AS time_bucket, " +
                 "ROUND(AVG(value), 2) AS avg_value, " +
+                "MIN(value) AS min_val, " +
+                "MAX(value) AS max_val, " +
                 "COUNT(*) AS sample_count " +
                 "FROM sensor_readings " +
                 "WHERE device_id = ? " +
-                "GROUP BY TRUNC(reading_time, 'HH') " +
+                "GROUP BY TRUNC(reading_time, 'MI') " +
                 "ORDER BY time_bucket";
 
+        long oracleStart = System.nanoTime();
+        List<Map<String, Object>> oracleRows = Collections.emptyList();
         try {
             oracleRows = jdbcTemplate.queryForList(oracleSql, targetDevId);
         } catch (Exception e) {
             log.warn("Oracle benchmark query fallback: {}", e.getMessage());
         }
         double oracleElapsedMs = (System.nanoTime() - oracleStart) / 1_000_000.0;
+        double realOracleMs = Math.round(oracleElapsedMs * 100.0) / 100.0;
 
         // 2. InfluxDB Flux Execution
         String fluxQuery = String.format(
@@ -297,13 +300,7 @@ public class InfluxDbService {
         long influxStart = System.nanoTime();
         Map<String, Object> influxResult = executeFlux(fluxQuery);
         double influxElapsedMs = (System.nanoTime() - influxStart) / 1_000_000.0;
-
-        // Format benchmark comparison payload
-        // In local development, the sample table contains only 12 seed rows, which Oracle reads from RAM in <1ms.
-        // To provide an academically rigorous benchmark reflecting real-world IoT telemetry (100,000+ points),
-        // we benchmark the relational full-scan downsampling cost (142.40ms) against InfluxDB's TSM columnar windowing (8.10ms).
-        double normalizedOracleMs = 142.40;
-        double normalizedInfluxMs = 8.10;
+        double realInfluxMs = Math.round(influxElapsedMs * 100.0) / 100.0;
 
         benchmark.put("targetDeviceId", targetDevId);
         benchmark.put("timestamp", new Date());
@@ -313,10 +310,9 @@ public class InfluxDbService {
         oracleCard.put("model", "Relational (3NF + B-Tree Indexes)");
         oracleCard.put("queryLanguage", "SQL");
         oracleCard.put("query", oracleSql.replace("?", String.valueOf(targetDevId)));
-        oracleCard.put("latencyMs", normalizedOracleMs);
-        oracleCard.put("sampleCacheLatencyMs", Math.round(oracleElapsedMs * 100.0) / 100.0);
-        oracleCard.put("rowsReturned", 12);
-        oracleCard.put("dataPayload", oracleRows);
+        oracleCard.put("latencyMs", realOracleMs);
+        oracleCard.put("rowsReturned", oracleRows.size());
+        oracleCard.put("dataPayload", oracleRows.subList(0, Math.min(20, oracleRows.size())));
         oracleCard.put("lockingModel", "Row-level locks / Undo table segments");
         oracleCard.put("compressionEfficiency", "Standard block-level (1.5x - 2x)");
 
@@ -325,8 +321,8 @@ public class InfluxDbService {
         influxCard.put("model", "Time-Structured Merge Tree (TSM)");
         influxCard.put("queryLanguage", "Flux");
         influxCard.put("query", fluxQuery);
-        influxCard.put("latencyMs", normalizedInfluxMs);
-        influxCard.put("rowsReturned", 12);
+        influxCard.put("latencyMs", realInfluxMs);
+        influxCard.put("rowsReturned", influxResult.get("rowCount"));
         influxCard.put("dataPayload", influxResult.get("rows"));
         influxCard.put("lockingModel", "Lock-free append-only memory buffer");
         influxCard.put("compressionEfficiency", "Gorilla Float64 Delta-of-Delta (~10x - 12x)");
@@ -334,11 +330,11 @@ public class InfluxDbService {
         benchmark.put("oracle", oracleCard);
         benchmark.put("influx", influxCard);
 
-        double speedup = normalizedOracleMs / normalizedInfluxMs;
+        double speedup = (realInfluxMs > 0) ? (realOracleMs / realInfluxMs) : 1.0;
         benchmark.put("speedupRatio", Math.round(speedup * 10.0) / 10.0);
         benchmark.put("summary", String.format(
-                "InfluxDB executed analytical downsampling aggregation in %.2f ms vs Oracle's %.2f ms (%.1fx faster).",
-                normalizedInfluxMs, normalizedOracleMs, speedup
+                "InfluxDB executed live analytical downsampling aggregation in %.2f ms vs Oracle's %.2f ms (%.1fx faster).",
+                realInfluxMs, realOracleMs, speedup
         ));
 
         return benchmark;
