@@ -1,4 +1,4 @@
-﻿# start-da3.ps1 - Launch complete DA3 Polyglot Stack (InfluxDB + Spring Boot + React Frontend)
+# start-da3.ps1 - Launch complete DA3 Polyglot Stack (InfluxDB + Spring Boot + React Frontend)
 $ErrorActionPreference = "Continue"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -28,20 +28,32 @@ if (-not $influxHealthy) {
 }
 
 # 2. Start Spring Boot in a new window
-Write-Host "[2/3] Launching Spring Boot Backend on :8080..." -ForegroundColor Yellow
+Write-Host "[2/5] Launching Spring Boot Backend on :8080..." -ForegroundColor Yellow
 $backendCmd = "cd `"$projectRoot\backend`"; `$env:DB_PASSWORD='SmartHomeDev123'; `$env:ADMIN_GOOGLE_EMAIL='akhilesh07vaidya@gmail.com'; `$env:GOOGLE_APPLICATION_CREDENTIALS='C:\Users\akhil\OneDrive\Desktop\firebase-secrets\smart-home-service-account.json'; .\mvnw.cmd spring-boot:run"
 Start-Process powershell.exe -ArgumentList "-NoExit", "-Command", $backendCmd
 
-# 3. Start Vite Frontend in a new window
-Write-Host "[3/3] Launching React / Vite Frontend on :5173..." -ForegroundColor Yellow
+# 3. Start Website 1: Oracle Smart Home Frontend (:5173)
+Write-Host "[3/5] Launching Website 1 (Oracle Smart Home) on :5173..." -ForegroundColor Yellow
 $frontendCmd = "cd `"$projectRoot\frontend`"; npm run dev"
 Start-Process powershell.exe -ArgumentList "-NoExit", "-Command", $frontendCmd
+
+# 4. Start Website 2: InfluxDB Smart Home Frontend (:5174)
+Write-Host "[4/5] Launching Website 2 (InfluxDB Smart Home) on :5174..." -ForegroundColor Yellow
+$frontendInfluxCmd = "cd `"$projectRoot\frontend-influx`"; npm run dev"
+Start-Process powershell.exe -ArgumentList "-NoExit", "-Command", $frontendInfluxCmd
+
+# 5. Start Website 3: Oracle vs InfluxDB Benchmark Frontend (:5175)
+Write-Host "[5/5] Launching Website 3 (Oracle vs InfluxDB Benchmark) on :5175..." -ForegroundColor Yellow
+$frontendCompareCmd = "cd `"$projectRoot\frontend-compare`"; npm run dev"
+Start-Process powershell.exe -ArgumentList "-NoExit", "-Command", $frontendCompareCmd
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host "  ALL DA3 SERVICES LAUNCHED LOCALLY!                     " -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "  1. React UI & DA3 Hub:  http://localhost:5173" -ForegroundColor Cyan
-Write-Host "  2. Backend REST API:    http://localhost:8080/api/influx/health" -ForegroundColor Cyan
-Write-Host "  3. InfluxDB Engine:     http://localhost:8086" -ForegroundColor Cyan
+Write-Host "  1. Oracle Smart Home:       http://localhost:5173" -ForegroundColor Cyan
+Write-Host "  2. InfluxDB Smart Home:     http://localhost:5174" -ForegroundColor Cyan
+Write-Host "  3. Comparison & Benchmark:  http://localhost:5175" -ForegroundColor Cyan
+Write-Host "  4. Backend REST API:        http://localhost:8080/api/influx/health" -ForegroundColor Cyan
+Write-Host "  5. InfluxDB Engine:         http://localhost:8086" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Green
