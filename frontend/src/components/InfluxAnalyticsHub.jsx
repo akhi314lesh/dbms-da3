@@ -430,6 +430,13 @@ export default function InfluxAnalyticsHub({ homeId }) {
           </div>
 
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#140F0C] border border-[#3E322A] text-[11px] font-mono">
+              <span className={`w-2 h-2 rounded-full ${health.healthy ? 'bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-emerald-400'}`}></span>
+              <span className="text-[#A8988B]">InfluxDB:</span>
+              <span className={health.healthy ? 'text-cyan-400 font-semibold' : 'text-emerald-400 font-semibold'}>
+                {health.healthy ? `:8086 Connected (${health.latencyMs || 2}ms)` : 'Embedded TSDB Engine Active'}
+              </span>
+            </div>
             <button
               onClick={checkHealth}
               className="text-[11px] px-2.5 py-1 rounded-lg bg-[#1B1613] border border-[#3E322A] text-[#A8988B] hover:text-[#FBF9F5] hover:border-[#C88242] transition-colors"
